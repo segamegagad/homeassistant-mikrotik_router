@@ -1,5 +1,5 @@
 {
-    "domain": "mikrotik_router",
+    "domain": "mikrotik_router_ros7",
     "name": "Mikrotik Router",
     "config_flow": true,
     "iot_class": "local_polling",
