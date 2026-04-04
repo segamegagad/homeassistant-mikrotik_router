@@ -231,6 +231,27 @@ class MikrotikAPI:
         return response or None
 
     # ---------------------------
+    #   get_wireless_clients
+    # ---------------------------
+    def get_wireless_clients(self) -> Optional(list):
+        """Get wireless clients (supports wireless + wifiwave2)."""
+        data = self.query("/interface/wireless/registration-table")
+
+        if data:
+            return data
+
+        # fallback для RouterOS 7 wifiwave2
+        data = self.query("/interface/wifi/registration-table")
+        if data:
+            _LOGGER.debug("Mikrotik %s: Using wifiwave2 API for wireless clients", self._host)
+            for entry in data:
+                entry["mac-address"] = entry.get("mac-address") or entry.get("mac")
+                entry["interface"] = entry.get("interface") or entry.get("ssid")
+            return data
+            
+        return None
+
+    # ---------------------------
     #   set_value
     # ---------------------------
     def set_value(self, path, param, value, mod_param, mod_value) -> bool:

@@ -2084,7 +2084,7 @@ class MikrotikCoordinator(DataUpdateCoordinator[None]):
         """Get wireless hosts data from Mikrotik"""
         self.ds["wireless_hosts"] = parse_api(
             data={},
-            source=self.api.query(f"/interface/{self._wifimodule}/registration-table"),
+            source=self.api.get_wireless_clients(),
             key="mac-address",
             vals=[
                 {"name": "mac-address"},
