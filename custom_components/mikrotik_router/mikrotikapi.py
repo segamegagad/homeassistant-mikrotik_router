@@ -184,7 +184,7 @@ class MikrotikAPI:
     # ---------------------------
     #   query
     # ---------------------------
-    def query(self, path, command=None, args=None, return_list=True) -> Optional(list):
+    def query(self, path, command=None, args=None, return_list=True, suppress_warning=False) -> Optional(list):
         """Retrieve data from Mikrotik API."""
         """Returns generator object, unless return_list passed as True"""
         if path == "/system/health" and self.disable_health:
@@ -201,6 +201,12 @@ class MikrotikAPI:
             _LOGGER.debug("API query: %s", path)
             response = self._connection.path(path)
         except Exception as e:
+            err_str = str(e).lower()
+            if "no such command" in err_str or "no such item" in err_str:
+                _LOGGER.warning("Mikrotik API command error for path %s : %s", path, err_str)
+                self.lock.release()
+                return None
+                
             self.disconnect("path", e)
             self.lock.release()
             return None
@@ -209,8 +215,12 @@ class MikrotikAPI:
             try:
                 response = list(response)
             except Exception as e:
-                if path == "/system/health" and "no such command prefix" in str(e):
-                    self.disable_health = True
+                err_str = str(e).lower()
+                if "no such command" in err_str:
+                    if path == "/system/health":
+                        self.disable_health = True
+                    if not suppress_warning:
+                        _LOGGER.warning("Mikrotik API command not found: %s", path)
                     self.lock.release()
                     return None
 
@@ -223,6 +233,12 @@ class MikrotikAPI:
             try:
                 response = list(response(command, **args))
             except Exception as e:
+                err_str = str(e).lower()
+                if "no such command" in err_str or "no such item" in err_str:
+                    _LOGGER.warning("Mikrotik API command error for %s.%s : %s", path, command, err_str)
+                    self.lock.release()
+                    return None
+                    
                 self.disconnect("path", e)
                 self.lock.release()
                 return None
@@ -235,19 +251,22 @@ class MikrotikAPI:
     # ---------------------------
     def get_wireless_clients(self, wifimodule="wireless") -> Optional(list):
         """Get wireless clients (supports wireless + wifiwave2)."""
-        data = self.query(f"/interface/{wifimodule}/registration-table")
+        paths_to_try = [
+            f"/interface/{wifimodule}/registration-table",
+            "/interface/wifi/registration-table",
+            "/interface/wifiwave2/registration-table"
+        ]
+        
+        for path in paths_to_try:
+            data = self.query(path, suppress_warning=True)
+            if data:
+                if "wireless" not in path:
+                    for entry in data:
+                        entry["mac-address"] = entry.get("mac-address") or entry.get("mac")
+                        entry["interface"] = entry.get("interface") or entry.get("ssid")
+                return data
 
-        if data:
-            if wifimodule == "wireless":
-                _LOGGER.debug("Using legacy wireless API")
-            else:
-                _LOGGER.debug("Using wifiwave2 API")
-                for entry in data:
-                    entry["mac-address"] = entry.get("mac-address") or entry.get("mac")
-                    entry["interface"] = entry.get("interface") or entry.get("ssid")
-            return data
-            
-        return data
+        return []
 
     # ---------------------------
     #   set_value
@@ -398,22 +417,24 @@ class MikrotikAPI:
             "arp-ping": "no",
             "interval": "100ms",
             "count": 3,
-            "interface": interface,
             "address": address,
         }
+        if interface and interface != "unknown":
+            args["interface"] = interface
+            
         self.lock.acquire()
         try:
             # _LOGGER.debug("Ping host query: %s", args["address"])
             ping = response("/ping", **args)
         except Exception as e:
-            self.disconnect("arp_ping", e)
+            _LOGGER.debug(f"Mikrotik ping error for {address}: {e}")
             self.lock.release()
             return False
 
         try:
             ping = list(ping)
         except Exception as e:
-            self.disconnect("arp_ping", e)
+            _LOGGER.debug(f"Mikrotik ping list error for {address}: {e}")
             self.lock.release()
             return False
 
