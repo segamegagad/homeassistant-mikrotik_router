@@ -238,18 +238,19 @@ class MikrotikAPI:
         data = self.query("/interface/wireless/registration-table")
 
         if data:
+            _LOGGER.debug("Using legacy wireless API")
             return data
 
         # fallback для RouterOS 7 wifiwave2
         data = self.query("/interface/wifi/registration-table")
         if data:
-            _LOGGER.debug("Mikrotik %s: Using wifiwave2 API for wireless clients", self._host)
+            _LOGGER.debug("Using wifiwave2 API")
             for entry in data:
                 entry["mac-address"] = entry.get("mac-address") or entry.get("mac")
                 entry["interface"] = entry.get("interface") or entry.get("ssid")
             return data
             
-        return None
+        return data
 
     # ---------------------------
     #   set_value
