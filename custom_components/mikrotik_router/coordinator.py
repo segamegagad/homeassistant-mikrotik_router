@@ -720,7 +720,7 @@ class MikrotikCoordinator(DataUpdateCoordinator[None]):
                 or "reboot" not in self.ds["access"]
                 or "test" not in self.ds["access"]
             ):
-                _LOGGER.warning(
+                _LOGGER.info(
                     "Mikrotik %s user %s does not have sufficient access rights. Integration functionality will be limited.",
                     self.host,
                     self.config_entry.data[CONF_USERNAME],
@@ -2084,7 +2084,7 @@ class MikrotikCoordinator(DataUpdateCoordinator[None]):
         """Get wireless hosts data from Mikrotik"""
         self.ds["wireless_hosts"] = parse_api(
             data={},
-            source=self.api.get_wireless_clients(),
+            source=self.api.get_wireless_clients(self._wifimodule),
             key="mac-address",
             vals=[
                 {"name": "mac-address"},
